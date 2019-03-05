@@ -1,7 +1,0 @@
-{
-    "producingTopics": ["UsersUpdate"],
-    "host": "localhost",
-    "user": "gmbicpwr",
-    "password": "eB4B6_30jeAn1catU_s5rhH-IPUL4TDn",
-    "url": "amqp://gmbicpwr:eB4B6_30jeAn1catU_s5rhH-IPUL4TDn@localhost/gmbicpwr"
-}
