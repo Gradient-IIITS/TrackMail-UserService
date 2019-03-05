@@ -5,9 +5,9 @@ import pymongo, json, logging, pprint, datetime
 
 # module logger
 module_logger = logging.getLogger('UserService.main')
-module_logger.setLevel(logging.ERROR)
+module_logger.setLevel(logging.DEBUG)
 ch = logging.FileHandler('UserService.log')
-ch.setLevel(logging.ERROR)
+ch.setLevel(logging.DEBUG)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 ch.setFormatter(formatter)
 module_logger.addHandler(ch)
@@ -99,10 +99,7 @@ class UserService:
         coll = self.get_or_create_collection(coll_name)
         inserted = coll.insert_one({**kwargs})
         self.logger.info(f'inserted {str_data} into {coll_name}')
-        
-        self.logger.info(f'publishing {str_data} using fanout')
         self.get_publisher().publish_new_user_created(**data)
-        self.logger.info(f'published {data} using fanout')
         return inserted
 
 # if __name__ == "__main__":
@@ -117,7 +114,6 @@ def create_user():
     if request.method == 'POST':
         user_service.create_user(**request.form)
         return Response('{ "created": 1 }', status=201, mimetype='application/json')
-
 
 serve(app, port=8080)
 

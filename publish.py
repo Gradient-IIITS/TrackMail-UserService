@@ -24,12 +24,6 @@ class PublishService:
         self.logger.info('creating an instance of PublishService')
         return super().__init__(*args, **kwargs)
     
-    # def __exit__(self):
-    #     self.logger.info('deleting an instance of PublishService')
-    #     if self._conn:
-    #         self._conn.close()
-    #     self.logger.info('deleted an instance of PublishService')
-
     def get_mq_client(self):
         # lazy singleton service
         if self._conn:
@@ -39,16 +33,18 @@ class PublishService:
             return self._conn
     
     def drop_mq_client(self):
+        self.logger.info('closing connection to rabbitMQ.')
         if self._conn:
             self._conn.close()
         self._conn = None
+        self.logger.info('closed connection to rabbitMQ.')
 
     def connect(self):
         """
         connects to a rabbitMQ for this microservice using config.json
         """
-        # rabbit_mq_data = open("config_local.json").read()
-        rabbit_mq_data = open("config.json").read()
+        rabbit_mq_data = open("config_local.json").read()
+        # rabbit_mq_data = open("config.json").read()
         data = json.loads(rabbit_mq_data)
         self.logger.info('connecting to rabbitMQ.')
         parameters = pika.URLParameters(data["url"])
@@ -61,13 +57,28 @@ class PublishService:
         """
         data = {**kwargs, **self.p_type}
         str_data = json.dumps(data)
-        self.logger.info(f'publishing {str_data} into {self.TOPIC_NAME} Queue')
-        channel = self.get_mq_client().channel()
-        channel.exchange_declare(exchange=data["module"], exchange_type='fanout')
-        channel.basic_publish(exchange=data["module"], routing_key='', body=str_data)
-        self.drop_mq_client()
-        self.logger.info(f'published {str_data} into {self.TOPIC_NAME} Queue')
+        try:
+            self.logger.info(f'publishing {str_data} into Queues by fanout')
+            channel = self.get_mq_client().channel()
+            channel.exchange_declare(exchange=data["module"], exchange_type='fanout')
+            channel.basic_publish(exchange=data["module"], routing_key='', body=str_data)
+            self.logger.info(f'published {str_data} into Queues')
+        except Exception as e:
+            self.logger.info(f'failed publishing {str_data} Queues by fanout.')
+            self.logger.error(e, exc_info=True)
+            self.logger.info(f'trying publishing {str_data} Queues by fanout again.')
 
-if __name__ == "__main__":
-    a = PublishService()
-    a.connect()
+            # heartbeat problem.
+            self.drop_mq_client()
+            self.connect()
+
+            self.logger.info(f'publishing {str_data} into Queues by fanout')
+            channel = self.get_mq_client().channel()
+            channel.exchange_declare(exchange=data["module"], exchange_type='fanout')
+            channel.basic_publish(exchange=data["module"], routing_key='', body=str_data)
+            self.logger.info(f'published {str_data} into Queues')
+
+
+# if __name__ == "__main__":
+#     a = PublishService()
+#     a.connect()
