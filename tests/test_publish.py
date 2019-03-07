@@ -1,6 +1,7 @@
 import pika, json, os
 
-rabbit_mq_data = open(os.path.dirname(__file__) + "/../config_local.json").read()
+rabbit_mq_data = open(os.path.dirname(__file__) + "/../config.json").read()
+# rabbit_mq_data = open(os.path.dirname(__file__) + "/../config_local.json").read()
 data = json.loads(rabbit_mq_data)
 parameters = pika.URLParameters(data["url"])
 connection = pika.BlockingConnection(parameters)

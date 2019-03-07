@@ -43,8 +43,8 @@ class PublishService:
         """
         connects to a rabbitMQ for this microservice using config.json
         """
-        rabbit_mq_data = open("config_local.json").read()
-        # rabbit_mq_data = open("config.json").read()
+        # rabbit_mq_data = open("config_local.json").read()
+        rabbit_mq_data = open("config.json").read()
         data = json.loads(rabbit_mq_data)
         self.logger.info('connecting to rabbitMQ.')
         parameters = pika.URLParameters(data["url"])
