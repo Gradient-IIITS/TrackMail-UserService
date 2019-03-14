@@ -1,7 +1,8 @@
 from publish import PublishService
 from flask import Flask, Response, request
 from waitress import serve
-import pymongo, json, logging, pprint, datetime
+from passlib.hash import pbkdf2_sha256
+import pymongo, json, logging, pprint, datetime, re
 
 # module logger
 module_logger = logging.getLogger('UserService.main')
@@ -18,19 +19,16 @@ app = Flask(__name__)
 
 class UserService:
     _conn = None
-    publisher = None
+    _publisher = None
+    _required_fields = ['username', 'first_name', 'last_name', 'email', 'password']
+    _username_min_len = 8
+    EMAIL_RE = re.compile(r'^[a-zA-Z\d\._\+-]+@([a-z\d-]+\.?[a-z\d-]+)+\.[a-z]{2,4}$')
     DB_NAME = 'UserDatabase'
 
     def __init__(self, *args, **kwargs):
         self.logger = logging.getLogger('UserService.main.UserService')
         self.logger.info('creating an instance of UserService')
         return super().__init__(*args, **kwargs)
-    
-    # def __exit__(self):
-    #     self.logger.info('deleting an instance of UserService.main.UserService')
-    #     if self._conn:
-    #         self._conn.close()
-    #     self.logger.info('deleted an instance of UserService.main.UserService')
 
     def get_mongo_client(self):
         # lazy singleton service
@@ -42,11 +40,11 @@ class UserService:
     
     def get_publisher(self):
         # lazy singleton service
-        if self.publisher:
-            return self.publisher
+        if self._publisher:
+            return self._publisher
         else:
-            self.publisher = PublishService()
-            return self.publisher
+            self._publisher = PublishService()
+            return self._publisher
 
     def connect(self):
         """
@@ -91,8 +89,41 @@ class UserService:
         self.logger.info(f'done getting or lazily creating a collection {coll_name}')
         return coll
 
+    #TODO: [improve logging]
+    def validate_data(self, data):
+        self.logger.info(f'checking errors in validate_data')
+        keys = data.keys()
+        errors = []
+        for field in self._required_fields:
+            if field not in keys:
+                errors.append({field: "this field is required"}) 
+        
+        # matching email
+        if 'email' in keys:
+            match = re.match(self.EMAIL_RE, data['email'])
+            if match is None:
+                errors.append({"email": "invalid email address"})
+        
+        # matching username
+        if 'username' in keys and len(data['username']) < self._username_min_len:
+            errors.append({"username": f"minlength {self._username_min_len} characters"})
+        
+        self.logger.info(f'returning errors in validate_data')
+        return errors
+    
+    def hash_password(self, password):
+        return pbkdf2_sha256.hash(password)
+    
+    def match_password(self, password, hash):
+        return pbkdf2_sha256.verify(password, hash)
+
     def create_user(self, coll_name='Users', **kwargs):
         data = {**kwargs}
+        errors = self.validate_data(data)
+        if errors:
+            return errors
+        # hashing password before insertion
+        data["password"] = self.hash_password(data["password"])
         str_data = json.dumps(data)
         
         self.logger.info(f'inserting {str_data} into {coll_name}')
@@ -100,20 +131,17 @@ class UserService:
         inserted = coll.insert_one({**kwargs})
         self.logger.info(f'inserted {str_data} into {coll_name}')
         self.get_publisher().publish_new_user_created(**data)
-        return inserted
+        return data
 
-# if __name__ == "__main__":
-#     a = UserService()
-#     print(a.create_user(username="Sony Ujjawal", password="qazwsxec", name="khushi ujjawal"))
-#     print(a.create_user(username="Nirmala Ujjawal", password="qazwsxec", name="khushi ujjawal"))
 
 user_service = UserService()
 
 @app.route('/', methods=['POST'])
 def create_user():
     if request.method == 'POST':
-        user_service.create_user(**request.form)
-        return Response('{ "created": 1 }', status=201, mimetype='application/json')
+        to_insert = request.form.to_dict()
+        inserted_data_or_err = user_service.create_user(**to_insert)
+        return Response({json.dumps(inserted_data_or_err)}, status=201, mimetype='application/json')
 
 serve(app, port=8080)
 

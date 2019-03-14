@@ -9,9 +9,8 @@ def create_profile(l):
     # l.client.get("/")
     l.client.post("/", 
         {
-            "name": fake.name(),
-            "address": fake.address(),
-            "ssn": fake.itin(),
+            "username": fake.name(),
+            "password": fake.itin(),
             "first_name": fake.first_name_male(),
             "last_name": fake.last_name_male(),
             "email": fake.email()
